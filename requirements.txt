@@ -1,7 +1,6 @@
 pandas
 numpy
 datetime
-math
 json
 requests
 data_manipulation
