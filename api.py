@@ -1,11 +1,14 @@
 import requests
 
 class ApiBA:
-    def __init__(self, base_market_url, base_wallet_url, markets, target_wallet):
+    def __init__(self, base_market_url, base_wallet_url, markets, target_wallet, vaults_url, dsr_url):
+        # This method now accepts 5 arguments plus self
         self.base_market_url = base_market_url
         self.base_wallet_url = base_wallet_url
         self.markets = markets
         self.target_wallet = target_wallet
+        self.vaults_url = vaults_url
+        self.dsr_url = dsr_url
         self.data = []
 
     def fetch_wallet_supply(self, market_id):
@@ -16,22 +19,41 @@ class ApiBA:
             for wallet in wallets:
                 if wallet['wallet_address'] == self.target_wallet:
                     return wallet['supply']
-        return 0  # Return 0 if the wallet is not found or request fails
+        return 0
+
+    def fetch_vault_caps(self):
+        response = requests.get(self.vaults_url)
+        if response.status_code == 200:
+            return {item['market_uid']: item['cap'] for item in response.json()['results']}
+        return {}
+
+    def fetch_dsr_rate(self):
+        # New method to fetch DSR rate
+        response = requests.get(self.dsr_url)
+        if response.status_code == 200:
+            return response.json().get("dsr_rate")
+        return None
 
     def fetch_data(self):
+        vault_caps = self.fetch_vault_caps()
+        dsr_rate = self.fetch_dsr_rate()
+
         for market in self.markets:
             market_url = self.base_market_url.format(market)
             market_response = requests.get(market_url)
             if market_response.status_code == 200:
                 market_data = market_response.json()[0]
                 maker_allocation = self.fetch_wallet_supply(market)
+                cap = vault_caps.get(market, None)
                 
                 combined_data = {
                     "market": market,
                     "total_supply": market_data["total_supply"],
                     "utilization": market_data["utilization"],
                     "borrow_rate": market_data["borrow_rate_apy"],
-                    "maker_allocation": maker_allocation
+                    "maker_allocation": maker_allocation,
+                    "supply_cap": cap,
+                    "dsr_rate": dsr_rate
                 }
                 self.data.append(combined_data)
             else:
