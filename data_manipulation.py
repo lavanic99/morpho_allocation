@@ -128,10 +128,14 @@ class PoolAnalysis:
     
     def calculate_inactive_withdrawals(self, row, min_balance, max_utilization, withdrawal_portion):
         if row['Status'] == "Inactive":
-            adjustment = min(max(min_balance - row['Total Supply After DSR Adjustment'], 
-                                 (row['Total Borrow'] / max_utilization) - row['Total Supply After DSR Adjustment'], 
-                                 -row['Maker Supply After DSR Adjustment'], 
-                                 -(row['DSR Adjustment'] - (row['Total Supply'] * withdrawal_portion)), 0), 0)
+            adjustment = min(
+                max(
+                    min_balance - row['Total Supply After DSR Adjustment'], 
+                    (row['Total Borrow'] / max_utilization) - row['Total Supply After DSR Adjustment'], 
+                    -row['Maker Supply After DSR Adjustment'], 
+                    -row['DSR Adjustment'] - (row['Total Supply'] * withdrawal_portion)
+                    ), 
+                0)
             
             return int(adjustment)
         else:
