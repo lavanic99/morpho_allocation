@@ -31,9 +31,11 @@ class PoolDataHandler:
 
 # Class for data manipulation and analysis of the pools
 class PoolAnalysis:
-    def __init__(self, pool_df, realloc_metaparm):
+    def __init__(self, pool_df, idle_df, realloc_metaparm):
         self.pool_df = pool_df
+        self.idle_df = idle_df
         self.total_maker_allocation = self.pool_df['Maker Allocation'].sum()
+        self.total_vault_size = idle_df['Maker Allocation'].iloc[0] + self.pool_df['Maker Allocation'].sum()
         self.inactive_min_balance = realloc_metaparm['inactive_pool']['min_balance']
         self.inactive_max_utilization = realloc_metaparm['inactive_pool']['max_utilization']
         self.inactive_max_portion_to_withdraw = realloc_metaparm['inactive_pool']['max_portion_to_withdraw']
@@ -80,14 +82,14 @@ class PoolAnalysis:
     
     def calculate_target_borrow_rate(self, row):
         return round(max(
-            row['DSR'] + 0.04 + self.total_maker_allocation * (0.01/100000000),
-            row['DSR'] * (1 + 0.8) * (1 + (0.05/100000000) * self.total_maker_allocation)), 4)
+            row['DSR'] + row['Fixed Spread'] + self.total_vault_size * row['Fixed Slope'],
+            row['DSR'] * (1 + row['Proportional Spread']) * (1 + row['Proportional Slope'] * self.total_vault_size)), 4)
     
     def calculate_min_borrow_rate(self, row):
-        return round(row['Target Borrow Rate'] * 0.8, 4)
+        return round(row['Target Borrow Rate'] * row['Low Target Threshold'], 4)
     
     def calculate_max_borrow_rate(self, row):
-        return round(row['Target Borrow Rate'] * 1.1, 4)
+        return round(row['Target Borrow Rate'] * row['High Target Threshold'], 4)
     
     def calculate_total_borrow(self, row):
         return int(row['Total Supply'] * row['Utilization'])
