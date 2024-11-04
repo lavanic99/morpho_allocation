@@ -24,7 +24,7 @@ class PoolDataHandler:
             self.pools_df.loc[pool_key, 'Borrow Rate'] = round(float(market_data['borrow_rate']), 4)
             self.pools_df.loc[pool_key, 'LLTV'] = float(self.extract_lltv(pool_key))  # Populate LLTV based on the pool key
             self.pools_df.loc[pool_key, 'Supply Cap'] = int(round(float(market_data['supply_cap']), 0))
-            self.pools_df.loc[pool_key, 'DSR'] = round(float(market_data['dsr_rate']), 4)
+            self.pools_df.loc[pool_key, 'SSR'] = round(float(market_data['ssr_rate']), 4)
         print("\nUpdated DataFrame:")
         return self.pools_df
 
@@ -82,8 +82,8 @@ class PoolAnalysis:
     
     def calculate_target_borrow_rate(self, row):
         return round(max(
-            row['DSR'] + row['Fixed Spread'] + self.total_vault_size * row['Fixed Slope'],
-            row['DSR'] * (1 + row['Proportional Spread']) * (1 + row['Proportional Slope'] * self.total_vault_size)), 4)
+            row['SSR'] + row['Fixed Spread'] + self.total_vault_size * row['Fixed Slope'],
+            row['SSR'] * (1 + row['Proportional Spread']) * (1 + row['Proportional Slope'] * self.total_vault_size)), 4)
     
     def calculate_min_borrow_rate(self, row):
         return round(row['Target Borrow Rate'] * row['Low Target Threshold'], 4)
@@ -106,36 +106,36 @@ class PoolAnalysis:
     def calculate_capped_borrow_rate(self, row):
         return round(min(row['Borrow Rate'], row['Optimal Rate']), 4)
     
-    def calculate_utilization_where_rate_equal_to_dsr(self, row):
-        if row['Optimal Rate'] < row['DSR']:
-            result = ((row['DSR'] / row['Optimal Rate']) + 26) / 30
+    def calculate_utilization_where_rate_equal_to_ssr(self, row):
+        if row['Optimal Rate'] < row['SSR']:
+            result = ((row['SSR'] / row['Optimal Rate']) + 26) / 30
         else:
-            result = 1.2 * ((row['DSR'] / row['Optimal Rate']) - 0.25)
+            result = 1.2 * ((row['SSR'] / row['Optimal Rate']) - 0.25)
         return round(min(result, 1), 4)
     
-    def calculate_dsr_adjustment(self, row, min_balance):
+    def calculate_ssr_adjustment(self, row, min_balance):
         return int(min(max(
-            row['Total Borrow'] / row['Utilization Where Rate Equal to DSR'] - row['Total Supply'], 
+            row['Total Borrow'] / row['Utilization Where Rate Equal to SSR'] - row['Total Supply'], 
             -row['Maker Allocation'], 
             min_balance - row['Total Supply']), 0))
     
-    def calculate_total_supply_after_dsr_adjustment(self, row):
-        return int(row['Total Supply'] + row['DSR Adjustment'])
+    def calculate_total_supply_after_ssr_adjustment(self, row):
+        return int(row['Total Supply'] + row['SSR Adjustment'])
     
-    def calculate_maker_supply_after_dsr_adjustment(self, row):
-        return int(row['Maker Allocation'] + row['DSR Adjustment'])
+    def calculate_maker_supply_after_ssr_adjustment(self, row):
+        return int(row['Maker Allocation'] + row['SSR Adjustment'])
     
-    def calculate_utilization_after_dsr_adjustment(self, row):
-        return round(row['Total Borrow'] / row['Total Supply After DSR Adjustment'], 4)
+    def calculate_utilization_after_ssr_adjustment(self, row):
+        return round(row['Total Borrow'] / row['Total Supply After SSR Adjustment'], 4)
     
     def calculate_inactive_withdrawals(self, row, min_balance, max_utilization, withdrawal_portion):
         if row['Status'] == "Inactive":
             adjustment = min(
                 max(
-                    min_balance - row['Total Supply After DSR Adjustment'], 
-                    (row['Total Borrow'] / max_utilization) - row['Total Supply After DSR Adjustment'], 
-                    -row['Maker Supply After DSR Adjustment'], 
-                    -row['DSR Adjustment'] - (row['Total Supply'] * withdrawal_portion)
+                    min_balance - row['Total Supply After SSR Adjustment'], 
+                    (row['Total Borrow'] / max_utilization) - row['Total Supply After SSR Adjustment'], 
+                    -row['Maker Supply After SSR Adjustment'], 
+                    -row['SSR Adjustment'] - (row['Total Supply'] * withdrawal_portion)
                     ), 
                 0)
             
@@ -152,11 +152,11 @@ class PoolAnalysis:
     
     def calculate_active_withdrawals(self, row, yes_active_funds, min_balance, max_utilization, withdrawal_portion):
         if yes_active_funds and row['Status'] == "Active":
-            adjustment = min(max((row['Total Borrow'] / max_utilization) - row['Total Supply'] -row['DSR Adjustment'],
-                                -row['Maker Supply After DSR Adjustment'], 
-                                -row['DSR Adjustment'] - (row['Total Supply'] * withdrawal_portion), 
-                                min_balance - row['Total Supply After DSR Adjustment'], 
-                                row['Total Borrow'] / row['Utilization Where Rate Equal To Min Target'] - row['Total Supply After DSR Adjustment']), 0)
+            adjustment = min(max((row['Total Borrow'] / max_utilization) - row['Total Supply'] -row['SSR Adjustment'],
+                                -row['Maker Supply After SSR Adjustment'], 
+                                -row['SSR Adjustment'] - (row['Total Supply'] * withdrawal_portion), 
+                                min_balance - row['Total Supply After SSR Adjustment'], 
+                                row['Total Borrow'] / row['Utilization Where Rate Equal To Min Target'] - row['Total Supply After SSR Adjustment']), 0)
             
             return int(adjustment)
         else:
@@ -171,8 +171,8 @@ class PoolAnalysis:
     
     def calculate_active_deposits(self, row):
         if row['Status'] == "Active":
-            return max(min(row['Total Borrow'] / row['Utilization Where Rate Equal To Max Target'] - row['Total Supply After DSR Adjustment'], 
-                               row['Supply Cap'] - row['Maker Supply After DSR Adjustment']), 
+            return max(min(row['Total Borrow'] / row['Utilization Where Rate Equal To Max Target'] - row['Total Supply After SSR Adjustment'], 
+                               row['Supply Cap'] - row['Maker Supply After SSR Adjustment']), 
                                0)
         else:
             return 0
@@ -184,7 +184,7 @@ class PoolAnalysis:
         return 0 
     
     def calculate_total_change(self, row):
-        total_sum = row['DSR Adjustment'] + row['Inactive Withdrawal'] + row['Active Withdrawal'] + row['Active Deposits'] + row['Manual Adjustment']
+        total_sum = row['SSR Adjustment'] + row['Inactive Withdrawal'] + row['Active Withdrawal'] + row['Active Deposits'] + row['Manual Adjustment']
 
         if -10000 <= total_sum <= 10000:
             return 0
@@ -240,7 +240,7 @@ class PoolAnalysis:
             row['Optimal Rate'] = self.calculate_optimal_rate(row)
             row['Capped Borrow Rate'] = self.calculate_capped_borrow_rate(row)
 
-#            row['DSR'] = round(0.0600, 4)
+#            row['SSR'] = round(0.0600, 4)
 
             row['Target Borrow Rate'] = self.calculate_target_borrow_rate(row)
 
@@ -248,12 +248,12 @@ class PoolAnalysis:
 
             row['Max Borrow Rate'] = self.calculate_max_borrow_rate(row)
 
-            row['Utilization Where Rate Equal to DSR'] = self.calculate_utilization_where_rate_equal_to_dsr(row)
+            row['Utilization Where Rate Equal to SSR'] = self.calculate_utilization_where_rate_equal_to_ssr(row)
 
-            row['DSR Adjustment'] = self.calculate_dsr_adjustment(row, self.inactive_min_balance)
-            row['Total Supply After DSR Adjustment'] = self.calculate_total_supply_after_dsr_adjustment(row)
-            row['Maker Supply After DSR Adjustment'] = self.calculate_maker_supply_after_dsr_adjustment(row)
-            row['Utilization After DSR Adjustment'] = self.calculate_utilization_after_dsr_adjustment(row)
+            row['SSR Adjustment'] = self.calculate_ssr_adjustment(row, self.inactive_min_balance)
+            row['Total Supply After SSR Adjustment'] = self.calculate_total_supply_after_ssr_adjustment(row)
+            row['Maker Supply After SSR Adjustment'] = self.calculate_maker_supply_after_ssr_adjustment(row)
+            row['Utilization After SSR Adjustment'] = self.calculate_utilization_after_ssr_adjustment(row)
             
             row['Inactive Withdrawal'] = self.calculate_inactive_withdrawals(row, self.inactive_min_balance, self.inactive_max_utilization, self.inactive_max_portion_to_withdraw)
             row['Utilization Where Rate Equal To Min Target'] = self.calculate_utilization_where_rate_equal_to_min_target(row)
