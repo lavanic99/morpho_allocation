@@ -18,13 +18,23 @@ class PoolDataHandler:
     def populate_dataframe(self, data):
         for market_data in data:
             pool_key = self.market_to_pool[market_data['market']]
-            self.pools_df.loc[pool_key, 'Total Supply'] = int(round(float(market_data['total_supply']), 0))
-            self.pools_df.loc[pool_key, 'Maker Allocation'] = int(round(float(market_data['maker_allocation']), 0))
-            self.pools_df.loc[pool_key, 'Utilization'] = round(float(market_data['utilization']), 4)
-            self.pools_df.loc[pool_key, 'Borrow Rate'] = round(float(market_data['borrow_rate']), 4)
-            self.pools_df.loc[pool_key, 'LLTV'] = float(self.extract_lltv(pool_key))  # Populate LLTV based on the pool key
-            self.pools_df.loc[pool_key, 'Supply Cap'] = int(round(float(market_data['supply_cap']), 0))
-            self.pools_df.loc[pool_key, 'SSR'] = round(float(market_data['ssr_rate']), 4)
+
+            # Safely extract each value, using a default if the value is None.
+            total_supply = market_data.get('total_supply', 0.0) or 0.0
+            maker_allocation = market_data.get('maker_allocation', 0.0) or 0.0
+            utilization = market_data.get('utilization', 0.0) or 0.0
+            borrow_rate = market_data.get('borrow_rate', 0.0) or 0.0
+            supply_cap = market_data.get('supply_cap', 0.0) or 0.0  # <-- important
+            ssr_rate = market_data.get('ssr_rate', 0.0) or 0.0
+
+            self.pools_df.loc[pool_key, 'Total Supply']     = int(round(float(total_supply), 0))
+            self.pools_df.loc[pool_key, 'Maker Allocation'] = int(round(float(maker_allocation), 0))
+            self.pools_df.loc[pool_key, 'Utilization']      = round(float(utilization), 4)
+            self.pools_df.loc[pool_key, 'Borrow Rate']      = round(float(borrow_rate), 4)
+            self.pools_df.loc[pool_key, 'LLTV']             = float(self.extract_lltv(pool_key)) 
+            self.pools_df.loc[pool_key, 'Supply Cap']       = int(round(float(supply_cap), 0))
+            self.pools_df.loc[pool_key, 'SSR']              = round(float(ssr_rate), 4)
+
         print("\nUpdated DataFrame:")
         return self.pools_df
 
